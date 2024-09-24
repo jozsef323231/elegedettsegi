@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elégedettségi kérdőív</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #FF6B6B;
+            --secondary-color: #4ECDC4;
+            --background-color: #F7FFF7;
+            --text-color: #2C3E50;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: var(--background-color);
+            color: var(--text-color);
+        }
+        .fejlec {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 15px;
+            text-align: center;
+            border-radius: 10px 10px 0 0;
+        }
+        .logo {
+            font-weight: bold;
+            font-size: 28px;
+        }
+        .kerdes {
+            background-color: white;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .valaszok {
+            justify-content: space-between;
+        }
+        .valasz {
+            flex-basis: 48%;
+            text-align: center;
+            cursor: pointer;
+            padding: 10px;
+            border-radius: 5px;
+            transition: all 0.3s;
+            margin-bottom: 10px;
+            background-color: #E0E0E0;
+        }
+        .valasz:hover {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+        .valasz.kivalasztott {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        .emoji {
+            font-size: 28px;
+            margin-bottom: 5px;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+            margin-top: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            font-family: inherit;
+        }
+        button {
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 16px;
+            margin-top: 15px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45B7AA;
+        }
+        #eredmenyek {
+            display: none;
+        }
+        .diagram-kontener {
+            margin-top: 20px;
+            background-color: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="fejlec">
+        <span class="logo">KÁLIJ</span>
+    </div>
+    <h1>Elégedettségi kérdőív</h1>
+    <div id="kerdoiv">
+        <div class="kerdes">
+            <p>Mennyire volt elégedett az ügyintézéssel?</p>
+            <div class="valaszok" data-kerdes="1">
+                <div class="valasz" data-ertek="4"><div class="emoji">😃</div>Nagyon!</div>
+                <div class="valasz" data-ertek="3"><div class="emoji">🙂</div>Inkább igen</div>
+                <div class="valasz" data-ertek="2"><div class="emoji">😐</div>Inkább nem</div>
+                <div class="valasz" data-ertek="1"><div class="emoji">😞</div>Egyáltalán nem</div>
+            </div>
+        </div>
+        <div class="kerdes">
+            <p>Megfelelőnek találta a bejelentésére adott válaszunkat, megoldásunkat?</p>
+            <div class="valaszok" data-kerdes="2">
+                <div class="valasz" data-ertek="4"><div class="emoji">😃</div>Nagyon!</div>
+                <div class="valasz" data-ertek="3"><div class="emoji">🙂</div>Inkább igen</div>
+                <div class="valasz" data-ertek="2"><div class="emoji">😐</div>Inkább nem</div>
+                <div class="valasz" data-ertek="1"><div class="emoji">😞</div>Egyáltalán nem</div>
+            </div>
+        </div>
+        <div class="kerdes">
+            <p>Milyen egyéb észrevétele van az ügyintézéssel kapcsolatban?</p>
+            <textarea id="visszajelzes"></textarea>
+        </div>
+        <button onclick="kerdoivBekuldes()">Elküldöm</button>
+    </div>
+    <div id="eredmenyek">
+        <h2>Eredmények</h2>
+        <p>Kitöltők száma: <span id="kitoltokSzama">0</span></p>
+        <div class="diagram-kontener">
+            <canvas id="diagram1"></canvas>
+        </div>
+        <div class="diagram-kontener">
+            <canvas id="diagram2"></canvas>
+        </div>
+        <button onclick="kerdoivMutat()">Új kitöltés</button>
+        <button onclick="osszesMegszuntet()">Összes adat törlése</button>
+    </div>
+
+    <script>
+        let osszesMegoszlas = [];
+        let diagram1, diagram2;
+
+        window.onload = function() {
+            const mentettAdatok = localStorage.getItem('kerdoivAdatok');
+            if (mentettAdatok) {
+                osszesMegoszlas = JSON.parse(mentettAdatok);
+                diagramokFrissitese();
+            }
+        };
+
+        document.querySelectorAll('.valasz').forEach(valasz => {
+            valasz.addEventListener('click', function() {
+                const kerdesDiv = this.closest('.valaszok');
+                kerdesDiv.querySelectorAll('.valasz').forEach(v => v.classList.remove('kivalasztott'));
+                this.classList.add('kivalasztott');
+            });
+        });
+
+        function kerdoivBekuldes() {
+            const kivalasztottak = document.querySelectorAll('.valasz.kivalasztott');
+            if (kivalasztottak.length < 2) {
+                alert('Kérjük, válaszoljon minden kérdésre!');
+                return;
+            }
+
+            let aktualisMegoszlas = {
+                1: 0,
+                2: 0,
+                visszajelzes: document.getElementById('visszajelzes').value
+            };
+
+            kivalasztottak.forEach(valasz => {
+                const kerdesIndex = valasz.parentElement.dataset.kerdes;
+                const ertek = parseInt(valasz.dataset.ertek);
+                aktualisMegoszlas[kerdesIndex] = ertek;
+            });
+
+            osszesMegoszlas.push(aktualisMegoszlas);
+
+            localStorage.setItem('kerdoivAdatok', JSON.stringify(osszesMegoszlas));
+
+            diagramokFrissitese();
+            eredmenyekMutat();
+        }
+
+        function kerdoivMutat() {
+            document.getElementById('kerdoiv').style.display = 'block';
+            document.getElementById('eredmenyek').style.display = 'none';
+            document.querySelectorAll('.valasz.kivalasztott').forEach(v => v.classList.remove('kivalasztott'));
+            document.getElementById('visszajelzes').value = '';
+        }
+
+        function eredmenyekMutat() {
+            document.getElementById('kerdoiv').style.display = 'none';
+            document.getElementById('eredmenyek').style.display = 'block';
+        }
+
+        function diagramokFrissitese() {
+            const kitoltokSzama = osszesMegoszlas.length;
+            document.getElementById('kitoltokSzama').textContent = kitoltokSzama;
+
+            let valaszok = {
+                1: [0, 0, 0, 0],
+                2: [0, 0, 0, 0]
+            };
+
+            osszesMegoszlas.forEach(megoszlas => {
+                valaszok[1][megoszlas[1] - 1]++;
+                valaszok[2][megoszlas[2] - 1]++;
+            });
+
+            const ctx1 = document.getElementById('diagram1').getContext('2d');
+            const ctx2 = document.getElementById('diagram2').getContext('2d');
+
+            if (diagram1) diagram1.destroy();
+            if (diagram2) diagram2.destroy();
+
+            const diagramOpciok = {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                    title: {
+                        display: true,
+                        font: {
+                            size: 16
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                }
+            };
+
+            diagram1 = new Chart(ctx1, {
+                type: 'bar',
+                data: {
+                    labels: ['Egyáltalán nem', 'Inkább nem', 'Inkább igen', 'Nagyon!'],
+                    datasets: [{
+                        label: 'Válaszok száma',
+                        data: valaszok[1],
+                        backgroundColor: ['#FF6B6B', '#FFD93D', '#6BCB77', '#4D96FF']
+                    }]
+                },
+                options: {
+                    ...diagramOpciok,
+                    plugins: {
+                        ...diagramOpciok.plugins,
+                        title: {
+                            ...diagramOpciok.plugins.title,
+                            text: 'Mennyire volt elégedett az ügyintézéssel?'
+                        }
+                    }
+                }
+            });
+
+            diagram2 = new Chart(ctx2, {
+                type: 'bar',
+                data: {
+                    labels: ['Egyáltalán nem', 'Inkább nem', 'Inkább igen', 'Nagyon!'],
+                    datasets: [{
+                        label: 'Válaszok száma',
+                        data: valaszok[2],
+                        backgroundColor: ['#FF6B6B', '#FFD93D', '#6BCB77', '#4D96FF']
+                    }]
+                },
+                options: {
+                    ...diagramOpciok,
+                    plugins: {
+                        ...diagramOpciok.plugins,
+                        title: {
+                            ...diagramOpciok.plugins.title,
+                            text: 'Megfelelőnek találta a bejelentésére adott válaszunkat, megoldásunkat?'
+                        }
+                    }
+                }
+            });
+        }
+
+        function osszesMegszuntet() {
+            if (confirm('Biztosan törölni szeretné az összes adatot?')) {
+                localStorage.removeItem('kerdoivAdatok');
+                osszesMegoszlas = [];
+                diagramokFrissitese();
+                eredmenyekMutat();
+            }
+        }
+    </script>
+</body>
+</html>
